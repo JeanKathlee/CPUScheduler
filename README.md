@@ -26,6 +26,8 @@ This is a **Java-based CPU Scheduling Simulator** that supports five classic sch
   - MLFQ (separate time slices per level)
 
 ---
+ScreenShots
+
 
 ## 📂 Project Structure
 CPU-Scheduling-Simulator/
