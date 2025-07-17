@@ -30,7 +30,7 @@ ScreenShots
  
 ![image alt](https://github.com/JeanKathlee/CPUScheduler/blob/05a363ef348955ff3944a24607d42386ed520231/Screenshot%202025-07-17%20174625.png)
 
-![image alt](
+![image alt](https://github.com/JeanKathlee/CPUScheduler/blob/25deb2db7d146a41b37bd2a13173638628496b5b/Screenshot%202025-07-17%20174700.png)
 ## 📂 Project Structure
 CPU-Scheduling-Simulator/
 ├── CPUSchedulingGUI.java         # GUI-based simulator (Java Swing)
