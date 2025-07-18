@@ -77,190 +77,254 @@ public class SchedulerAlgorithms {
     }
 
     public static void srtf(List<Process> plist, int contextSwitch) {
-        List<Process> processes = new ArrayList<>();
-        for (Process p : plist) processes.add(new Process(p.pid, p.arrival, p.burst));
+    List<Process> processes = new ArrayList<>();
+    for (Process p : plist) processes.add(new Process(p.pid, p.arrival, p.burst));
 
-        int n = processes.size(), time = 0, completed = 0, lastIdx = -1;
-        int totalTurnaround = 0, totalResponse = 0, totalWaiting = 0;
-        boolean[] started = new boolean[n];
-        StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
+    int n = processes.size(), time = 0, completed = 0, lastIdx = -1;
+    int totalTurnaround = 0, totalResponse = 0, totalWaiting = 0;
+    boolean[] started = new boolean[n];
+    StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
 
-        while (completed < n) {
-            int idx = -1, minRem = Integer.MAX_VALUE;
+    while (completed < n) {
+        int idx = -1, minRem = Integer.MAX_VALUE;
 
-            for (int i = 0; i < n; i++) {
-                Process p = processes.get(i);
-                if (p.arrival <= time && p.remaining > 0 && p.remaining < minRem) {
-                    minRem = p.remaining;
-                    idx = i;
-                }
-            }
-
-            if (idx == -1) {
-                time++;
-                continue;
-            }
-
-            if (lastIdx != -1 && lastIdx != idx) {
-                time += contextSwitch;
-            }
-
-            Process p = processes.get(idx);
-            if (!started[idx]) {
-                p.start = time;
-                p.response = time - p.arrival;
-                started[idx] = true;
-            }
-
-            if (lastIdx != idx) {
-                gantt.append(" P").append(p.pid).append(" |");
-            }
-
-            p.remaining--;
-            time++;
-            lastIdx = idx;
-
-            if (p.remaining == 0) {
-                p.completion = time;
-                p.turnaround = p.completion - p.arrival;
-                p.waiting = p.turnaround - p.burst;
-                totalTurnaround += p.turnaround;
-                totalResponse += p.response;
-                totalWaiting += p.waiting;
-                completed++;
-                lastIdx = -1;
+        for (int i = 0; i < n; i++) {
+            Process p = processes.get(i);
+            if (p.arrival <= time && p.remaining > 0 && p.remaining < minRem) {
+                minRem = p.remaining;
+                idx = i;
             }
         }
 
-        System.out.println(gantt);
-        printTable(processes, totalTurnaround, totalWaiting, totalResponse);
+        if (idx == -1) {
+            time++;
+            continue;
+        }
+
+        if (lastIdx != -1 && lastIdx != idx) {
+            // Context switch delay (simulate idle period)
+            for (int cs = 0; cs < contextSwitch; cs++) {
+                gantt.append(" CS |"); // Optional: show 'CS' for context switch
+                time++;
+            }
+        }
+
+        Process p = processes.get(idx);
+
+        if (!started[idx]) {
+            p.start = time;
+            p.response = time - p.arrival;
+            started[idx] = true;
+        }
+
+        // Print process only if different from last
+        if (lastIdx != idx) {
+            gantt.append(" P").append(p.pid).append(" |");
+        }
+
+        p.remaining--;
+        time++;
+        lastIdx = idx;
+
+        if (p.remaining == 0) {
+            p.completion = time;
+            p.turnaround = p.completion - p.arrival;
+            p.waiting = p.turnaround - p.burst;
+            totalTurnaround += p.turnaround;
+            totalResponse += p.response;
+            totalWaiting += p.waiting;
+            completed++;
+            // Don't immediately clear lastIdx — wait until next process is chosen
+        }
+    }   
+
+    System.out.println(gantt);
+    printTable(processes, totalTurnaround, totalWaiting, totalResponse);
+}
+
+
+public static void roundRobin(List<Process> plist, int quantum) {
+    List<Process> processes = new ArrayList<>();
+    for (Process p : plist)
+        processes.add(new Process(p.pid, p.arrival, p.burst));
+
+    int n = processes.size();
+    int time = 0, completed = 0;
+    int totalTurnaround = 0, totalWaiting = 0, totalResponse = 0;
+    Queue<Integer> queue = new LinkedList<>();
+    boolean[] visited = new boolean[n];
+    boolean[] started = new boolean[n];
+    StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
+
+    // Sort by arrival
+    processes.sort(Comparator.comparingInt(p -> p.arrival));
+    int arrived = 0;
+
+    // Add first arriving processes
+    while (arrived < n && processes.get(arrived).arrival <= time) {
+        queue.add(arrived);
+        visited[arrived] = true;
+        arrived++;
     }
 
-    public static void roundRobin(List<Process> plist, int quantum) {
-        List<Process> processes = new ArrayList<>();
-        for (Process p : plist) processes.add(new Process(p.pid, p.arrival, p.burst));
-        int n = processes.size(), time = 0, completed = 0, lastPid = -1;
-        int totalTurnaround = 0, totalResponse = 0, totalWaiting = 0;
-        boolean[] started = new boolean[n], inQueue = new boolean[n];
-        Queue<Integer> q = new LinkedList<>();
-        StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
-        int arrived = 0;
+    if (queue.isEmpty() && arrived < n) {
+        // jump to the arrival of the first process
+        time = processes.get(arrived).arrival;
+        queue.add(arrived);
+        visited[arrived] = true;
+        arrived++;
+    }
 
-        while (completed < n) {
+    int lastPid = -1;
+    while (completed < n) {
+        if (queue.isEmpty()) {
+            gantt.append(" idle |");
+            time++;
+            // Check new arrivals during idle
             while (arrived < n && processes.get(arrived).arrival <= time) {
-                q.add(arrived);
-                inQueue[arrived] = true;
+                queue.add(arrived);
+                visited[arrived] = true;
                 arrived++;
             }
-            if (q.isEmpty()) {
-                time++;
-                continue;
+            continue;
+        }
+
+        int idx = queue.poll();
+        Process p = processes.get(idx);
+
+        if (!started[idx]) {
+            p.start = time;
+            p.response = time - p.arrival;
+            started[idx] = true;
+        }
+
+        if (lastPid != p.pid) {
+            gantt.append(" P").append(p.pid).append(" |");
+            lastPid = p.pid;
+        }
+
+        int exec = Math.min(quantum, p.remaining);
+        for (int t = 0; t < exec; t++) {
+            time++;
+            p.remaining--;
+
+            // Check for new arrivals every time unit
+            while (arrived < n && processes.get(arrived).arrival <= time) {
+                if (!visited[arrived]) {
+                    queue.add(arrived);
+                    visited[arrived] = true;
+                }
+                arrived++;
             }
 
-            int idx = q.poll();
-            Process p = processes.get(idx);
-            if (!started[idx]) {
-                p.start = time;
-                p.response = time - p.arrival;
-                started[idx] = true;
-            }
-            int exec = Math.min(quantum, p.remaining);
-            if (lastPid != p.pid) {
-                gantt.append(" P").append(p.pid).append(" |");
-                lastPid = p.pid;
-            }
-            for (int t = 0; t < exec; t++) {
-                time++;
-                while (arrived < n && processes.get(arrived).arrival <= time) {
-                    if (!inQueue[arrived]) {
-                        q.add(arrived);
-                        inQueue[arrived] = true;
-                    }
-                    arrived++;
-                }
-            }
-            p.remaining -= exec;
-            if (p.remaining == 0) {
-                p.completion = time;
-                p.turnaround = p.completion - p.arrival;
-                p.waiting = p.turnaround - p.burst;
-                totalTurnaround += p.turnaround;
-                totalResponse += p.response;
-                totalWaiting += p.waiting;
-                completed++;
-            } else {
-                q.add(idx);
-            }
+            if (p.remaining == 0) break;
         }
-        System.out.println(gantt);
-        printTable(processes, totalTurnaround, totalWaiting, totalResponse);
+
+        if (p.remaining == 0) {
+            p.completion = time;
+            p.turnaround = p.completion - p.arrival;
+            p.waiting = p.turnaround - p.burst;
+            totalTurnaround += p.turnaround;
+            totalWaiting += p.waiting;
+            totalResponse += p.response;
+            completed++;
+        } else {
+            queue.add(idx); // Re-add unfinished process
+        }
     }
 
-    public static void mlfq(List<Process> plist, int[] quantums) {
-        List<Process> processes = new ArrayList<>();
-        for (Process p : plist) processes.add(new Process(p.pid, p.arrival, p.burst));
-        int n = processes.size(), time = 0, completed = 0, lastPid = -1;
-        int totalTurnaround = 0, totalResponse = 0, totalWaiting = 0;
-        boolean[] started = new boolean[n];
-        Queue<Integer>[] queues = new LinkedList[quantums.length];
-        for (int i = 0; i < quantums.length; i++) queues[i] = new LinkedList<>();
-        StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
-        int arrived = 0;
+    System.out.println(gantt);
+    printTable(processes, totalTurnaround, totalWaiting, totalResponse);
+}
 
-        while (completed < n) {
+
+
+
+   public static void mlfq(List<Process> plist, int[] quantums) {
+    List<Process> processes = new ArrayList<>();
+    for (Process p : plist)
+        processes.add(new Process(p.pid, p.arrival, p.burst));
+
+    int n = processes.size();
+    int time = 0, completed = 0, lastPid = -1;
+    int totalTurnaround = 0, totalWaiting = 0, totalResponse = 0;
+
+    boolean[] started = new boolean[n];
+    Queue<Integer>[] queues = new LinkedList[quantums.length];
+    for (int i = 0; i < quantums.length; i++)
+        queues[i] = new LinkedList<>();
+
+    processes.sort(Comparator.comparingInt(p -> p.arrival));
+    int arrived = 0;
+    StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
+
+    while (completed < n) {
+        // Add newly arrived processes to Q0
+        while (arrived < n && processes.get(arrived).arrival <= time) {
+            queues[0].add(arrived);
+            arrived++;
+        }
+
+        int qIdx = -1;
+        for (int i = 0; i < quantums.length; i++) {
+            if (!queues[i].isEmpty()) {
+                qIdx = i;
+                break;
+            }
+        }
+
+        if (qIdx == -1) {
+            gantt.append(" idle |");
+            time++;
+            continue;
+        }
+
+        int idx = queues[qIdx].poll();
+        Process p = processes.get(idx);
+
+        if (!started[idx]) {
+            p.start = time;
+            p.response = time - p.arrival;
+            started[idx] = true;
+        }
+
+        int exec = Math.min(quantums[qIdx], p.remaining);
+        gantt.append(" P").append(p.pid).append("(Q").append(qIdx).append(") |");
+
+        for (int t = 0; t < exec; t++) {
+            time++;
+            p.remaining--;
+
+            // Add newly arriving processes to Q0 during execution
             while (arrived < n && processes.get(arrived).arrival <= time) {
                 queues[0].add(arrived);
                 arrived++;
             }
 
-            int qIdx = -1;
-            for (int i = 0; i < quantums.length; i++) {
-                if (!queues[i].isEmpty()) {
-                    qIdx = i;
-                    break;
-                }
-            }
-            if (qIdx == -1) {
-                time++;
-                continue;
-            }
-
-            int idx = queues[qIdx].poll();
-            Process p = processes.get(idx);
-            if (!started[idx]) {
-                p.start = time;
-                p.response = time - p.arrival;
-                started[idx] = true;
-            }
-            int exec = Math.min(quantums[qIdx], p.remaining);
-            if (lastPid != p.pid) {
-                gantt.append(" P").append(p.pid).append("(Q").append(qIdx).append(") |");
-                lastPid = p.pid;
-            }
-            for (int t = 0; t < exec; t++) {
-                time++;
-                while (arrived < n && processes.get(arrived).arrival <= time) {
-                    queues[0].add(arrived);
-                    arrived++;
-                }
-            }
-            p.remaining -= exec;
-            if (p.remaining == 0) {
-                p.completion = time;
-                p.turnaround = p.completion - p.arrival;
-                p.waiting = p.turnaround - p.burst;
-                totalTurnaround += p.turnaround;
-                totalResponse += p.response;
-                totalWaiting += p.waiting;
-                completed++;
-            } else {
-                if (qIdx < quantums.length - 1) queues[qIdx + 1].add(idx);
-                else queues[qIdx].add(idx);
-            }
+            if (p.remaining == 0) break;
         }
-        System.out.println(gantt);
-        printTable(processes, totalTurnaround, totalWaiting, totalResponse);
+
+        if (p.remaining == 0) {
+            p.completion = time;
+            p.turnaround = p.completion - p.arrival;
+            p.waiting = p.turnaround - p.burst;
+            totalTurnaround += p.turnaround;
+            totalWaiting += p.waiting;
+            totalResponse += p.response;
+            completed++;
+        } else {
+            // Demote if not completed and not already in last queue
+            if (qIdx < quantums.length - 1)
+                queues[qIdx + 1].add(idx);
+            else
+                queues[qIdx].add(idx); // Stay in Q3
+        }
     }
+
+    System.out.println(gantt);
+    printTable(processes, totalTurnaround, totalWaiting, totalResponse);
+}
+
 
     private static void printTable(List<Process> plist, int totalTurnaround, int totalWaiting, int totalResponse) {
         int n = plist.size();
