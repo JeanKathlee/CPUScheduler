@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Queue;
 
 public class SchedulerAlgorithms {
+
     public static void fcfs(List<Process> plist) {
         plist.sort(Comparator.comparingInt((Process p) -> p.arrival).thenComparingInt(p -> p.pid));
         int time = 0, totalTurnaround = 0, totalResponse = 0, totalWaiting = 0;
@@ -26,69 +27,114 @@ public class SchedulerAlgorithms {
         printTable(plist, totalTurnaround, totalWaiting, totalResponse);
     }
 
- public static void srtf(List<Process> plist, int contextSwitch) {
-    List<Process> processes = new ArrayList<>();
-    for (Process p : plist) processes.add(new Process(p.pid, p.arrival, p.burst));
+    // ✅ NEW: Non-Preemptive Shortest Job First
+    public static void sjf(List<Process> plist) {
+        List<Process> processes = new ArrayList<>();
+        for (Process p : plist) processes.add(new Process(p.pid, p.arrival, p.burst));
 
-    int n = processes.size(), time = 0, completed = 0, lastIdx = -1;
-    int totalTurnaround = 0, totalResponse = 0, totalWaiting = 0;
-    boolean[] started = new boolean[n];
-    StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
+        int n = processes.size();
+        int time = 0, completed = 0;
+        int totalTurnaround = 0, totalWaiting = 0, totalResponse = 0;
+        boolean[] done = new boolean[n];
+        StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
 
-    while (completed < n) {
-        int idx = -1, minRem = Integer.MAX_VALUE;
+        while (completed < n) {
+            int idx = -1;
+            int minBurst = Integer.MAX_VALUE;
 
-        for (int i = 0; i < n; i++) {
-            Process p = processes.get(i);
-            if (p.arrival <= time && p.remaining > 0 && p.remaining < minRem) {
-                minRem = p.remaining;
-                idx = i;
+            for (int i = 0; i < n; i++) {
+                Process p = processes.get(i);
+                if (!done[i] && p.arrival <= time && p.burst < minBurst) {
+                    minBurst = p.burst;
+                    idx = i;
+                }
             }
-        }
 
-        if (idx == -1) {
-            time++;
-            continue;
-        }
+            if (idx == -1) {
+                time++;
+                continue;
+            }
 
-        // Apply context switch if switching processes
-        if (lastIdx != -1 && lastIdx != idx) {
-            time += contextSwitch;
-        }
-
-        Process p = processes.get(idx);
-        if (!started[idx]) {
+            Process p = processes.get(idx);
             p.start = time;
             p.response = time - p.arrival;
-            started[idx] = true;
-        }
-
-        if (lastIdx != idx) {
-            gantt.append(" P").append(p.pid).append(" |");
-        }
-
-        // Execute one time unit
-        p.remaining--;
-        time++;
-        lastIdx = idx;
-
-        if (p.remaining == 0) {
+            time += p.burst;
             p.completion = time;
             p.turnaround = p.completion - p.arrival;
             p.waiting = p.turnaround - p.burst;
+
             totalTurnaround += p.turnaround;
-            totalResponse += p.response;
             totalWaiting += p.waiting;
+            totalResponse += p.response;
+            done[idx] = true;
             completed++;
-            // Mark no process running now, to trigger context switch next time
-            lastIdx = -1;
+
+            gantt.append(" P").append(p.pid).append(" |");
         }
+
+        System.out.println(gantt);
+        printTable(processes, totalTurnaround, totalWaiting, totalResponse);
     }
 
-    System.out.println(gantt);
-    printTable(processes, totalTurnaround, totalWaiting, totalResponse);
-}
+    public static void srtf(List<Process> plist, int contextSwitch) {
+        List<Process> processes = new ArrayList<>();
+        for (Process p : plist) processes.add(new Process(p.pid, p.arrival, p.burst));
 
+        int n = processes.size(), time = 0, completed = 0, lastIdx = -1;
+        int totalTurnaround = 0, totalResponse = 0, totalWaiting = 0;
+        boolean[] started = new boolean[n];
+        StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
+
+        while (completed < n) {
+            int idx = -1, minRem = Integer.MAX_VALUE;
+
+            for (int i = 0; i < n; i++) {
+                Process p = processes.get(i);
+                if (p.arrival <= time && p.remaining > 0 && p.remaining < minRem) {
+                    minRem = p.remaining;
+                    idx = i;
+                }
+            }
+
+            if (idx == -1) {
+                time++;
+                continue;
+            }
+
+            if (lastIdx != -1 && lastIdx != idx) {
+                time += contextSwitch;
+            }
+
+            Process p = processes.get(idx);
+            if (!started[idx]) {
+                p.start = time;
+                p.response = time - p.arrival;
+                started[idx] = true;
+            }
+
+            if (lastIdx != idx) {
+                gantt.append(" P").append(p.pid).append(" |");
+            }
+
+            p.remaining--;
+            time++;
+            lastIdx = idx;
+
+            if (p.remaining == 0) {
+                p.completion = time;
+                p.turnaround = p.completion - p.arrival;
+                p.waiting = p.turnaround - p.burst;
+                totalTurnaround += p.turnaround;
+                totalResponse += p.response;
+                totalWaiting += p.waiting;
+                completed++;
+                lastIdx = -1;
+            }
+        }
+
+        System.out.println(gantt);
+        printTable(processes, totalTurnaround, totalWaiting, totalResponse);
+    }
 
     public static void roundRobin(List<Process> plist, int quantum) {
         List<Process> processes = new ArrayList<>();
