@@ -78,35 +78,55 @@ public class SchedulerAlgorithms {
 
     public static void srtf(List<Process> plist, int contextSwitch) {
     List<Process> processes = new ArrayList<>();
-    for (Process p : plist) processes.add(new Process(p.pid, p.arrival, p.burst));
+    for (Process p : plist)
+        processes.add(new Process(p.pid, p.arrival, p.burst));
 
-    int n = processes.size(), time = 0, completed = 0, lastIdx = -1;
-    int totalTurnaround = 0, totalResponse = 0, totalWaiting = 0;
+    int n = processes.size();
+    int time = 0, completed = 0;
+    int totalTurnaround = 0, totalWaiting = 0, totalResponse = 0;
+
     boolean[] started = new boolean[n];
     StringBuilder gantt = new StringBuilder("Gantt Chart:\n|");
+    int lastIdx = -1;
+    boolean inContextSwitch = false;
+    int contextRemaining = 0;
+    int nextIdx = -1;
 
     while (completed < n) {
-        int idx = -1, minRem = Integer.MAX_VALUE;
+        // Find the process with the shortest remaining time
+        int idx = -1, minRemaining = Integer.MAX_VALUE;
 
         for (int i = 0; i < n; i++) {
             Process p = processes.get(i);
-            if (p.arrival <= time && p.remaining > 0 && p.remaining < minRem) {
-                minRem = p.remaining;
+            if (p.arrival <= time && p.remaining > 0 && p.remaining < minRemaining) {
+                minRemaining = p.remaining;
                 idx = i;
             }
         }
 
+        if (inContextSwitch) {
+            gantt.append(" CS |");
+            time++;
+            contextRemaining--;
+            if (contextRemaining == 0) {
+                inContextSwitch = false;
+                lastIdx = nextIdx;
+            }
+            continue;
+        }
+
         if (idx == -1) {
+            gantt.append(" idle |");
             time++;
             continue;
         }
 
         if (lastIdx != -1 && lastIdx != idx) {
-            // Context switch delay (simulate idle period)
-            for (int cs = 0; cs < contextSwitch; cs++) {
-                gantt.append(" CS |"); // Optional: show 'CS' for context switch
-                time++;
-            }
+            // Context switch needed
+            inContextSwitch = true;
+            contextRemaining = contextSwitch;
+            nextIdx = idx;
+            continue;
         }
 
         Process p = processes.get(idx);
@@ -117,7 +137,6 @@ public class SchedulerAlgorithms {
             started[idx] = true;
         }
 
-        // Print process only if different from last
         if (lastIdx != idx) {
             gantt.append(" P").append(p.pid).append(" |");
         }
@@ -131,16 +150,17 @@ public class SchedulerAlgorithms {
             p.turnaround = p.completion - p.arrival;
             p.waiting = p.turnaround - p.burst;
             totalTurnaround += p.turnaround;
-            totalResponse += p.response;
             totalWaiting += p.waiting;
+            totalResponse += p.response;
             completed++;
-            // Don't immediately clear lastIdx — wait until next process is chosen
+            // Don’t reset lastIdx here to avoid false context switch
         }
-    }   
+    }
 
     System.out.println(gantt);
     printTable(processes, totalTurnaround, totalWaiting, totalResponse);
 }
+
 
 
 public static void roundRobin(List<Process> plist, int quantum) {
