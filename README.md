@@ -78,11 +78,15 @@ Average Response Time  : 2.00
 -Inaccurate Context Switch Handling:
 The current implementation does not correctly simulate or reflect the delay or time cost of context switching between processes, which may slightly affect the timing of process completion and metrics like turnaround or waiting time in certain scenarios.
 
--No I/O or Blocking Support:
-The simulator assumes all processes are CPU-bound and does not handle I/O-bound behavior or blocking during execution.
 
 -Limited Error Handling for Input:
 Manual input mode assumes correct user input (e.g., non-negative integers), and invalid data may cause unexpected behavior.
+
+-Gantt Chart Time Markers Missing:
+The current Gantt chart only displays the order of process execution (e.g., P1 P2 P1 P3) without showing actual time markers (e.g., 0 P1 4 P2 6 P1). This makes it harder to trace the exact time each process starts and ends.
+
+-No Time Allotment for MLFQ:
+The Multi-Level Feedback Queue (MLFQ) implementation does not use time allotments for each queue level. Processes are demoted only after using up the time quantum, without consideration for a fixed time budget per level.
 
 Author
 Jean Kathleen R. Villegas
